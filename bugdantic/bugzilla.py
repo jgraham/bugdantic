@@ -107,6 +107,9 @@ class Bug(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_unset=True)
+
 
 class BugSearch(BaseModel):
     faults: Optional[list[Any]] = None
