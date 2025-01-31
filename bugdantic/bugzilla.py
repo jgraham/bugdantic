@@ -248,8 +248,10 @@ class BugsUpdateResponse(BaseModel):
 class BugzillaConfig:
     base_url: str
     api_key: Optional[str] = None
-    request_timeout: Optional[int] = 30
+    request_timeout: Optional[int] = 60
     allow_writes: bool = False
+    # Number of times to retry a request if there's a 503 error
+    max_retries: int = 1
 
 
 class Bugzilla:
@@ -290,10 +292,14 @@ class Bugzilla:
         url = urljoin(self.config.base_url, f"/rest/{path}")
 
         if self.config.allow_writes or method in {"GET", "OPTIONS", "HEAD"}:
-            print(method, path, headers, json_body)
-            response = self.client.request(
-                method, url, params=params, headers=headers, json=json_body
-            )
+            retry = 0
+            while retry <= self.config.max_retries:
+                retry += 1
+                response = self.client.request(
+                    method, url, params=params, headers=headers, json=json_body
+                )
+                if response.status_code != 503:
+                    break
             try:
                 response.raise_for_status()
             except Exception as e:
