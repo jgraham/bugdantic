@@ -350,7 +350,9 @@ class Bugzilla:
 """)
             return {}
 
-    def bug(self, bug_id: int, include_fields: Optional[list[str]]) -> Optional[Bug]:
+    def bug(
+        self, bug_id: int, include_fields: Optional[list[str]] = None
+    ) -> Optional[Bug]:
         search_result = BugSearch.model_validate(
             self.request("GET", f"bug/{bug_id}", include_fields=include_fields)
         )
@@ -382,7 +384,7 @@ class Bugzilla:
     def search(
         self,
         query: dict[str, str],
-        include_fields=Optional[list[str]],
+        include_fields: Optional[list[str]] = None,
         page_size: int = 100,
     ) -> list[Bug]:
         paginate = False
