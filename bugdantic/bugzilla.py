@@ -29,16 +29,16 @@ class UserSearch(BaseModel):
 
 
 class User(BaseModel):
-    id: Optional[int]
-    real_name: Optional[str]
-    email: Optional[str]
-    name: Optional[str]
-    can_login: Optional[bool]
-    email_enabled: Optional[bool]
-    login_denied_text: Optional[str]
-    groups: Optional[list[UserGroup]]
-    saved_searches: Optional[list[UserSearch]]
-    saved_reports: Optional[list[UserSearch]]
+    id: int
+    real_name: str
+    email: str
+    name: str
+    can_login: Optional[bool] = None
+    email_enabled: Optional[bool] = None
+    login_denied_text: Optional[str] = None
+    groups: Optional[list[UserGroup]] = None
+    saved_searches: Optional[list[UserSearch]] = None
+    saved_reports: Optional[list[UserSearch]] = None
 
 
 # Data models for getting bugs
