@@ -100,6 +100,8 @@ class Bug(BaseModel):
     whiteboard: Optional[str] = None
 
     # BMO specific custom fields
+    cf_last_resolved: Optional[datetime] = None
+    cf_user_story: Optional[str] = None
     cf_webcompat_priority: Optional[str] = None
     cf_webcompat_score: Optional[str] = None
 
@@ -220,6 +222,7 @@ class BugUpdate(BaseModel):
     work_time: Optional[str] = None
 
     # BMO specific custom fields
+    cf_user_story: Optional[str] = None
     cf_webcompat_priority: Optional[WebcompatPriority] = None
     cf_webcompat_score: Optional[str] = None
 
