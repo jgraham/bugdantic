@@ -116,6 +116,36 @@ class BugSearch(BaseModel):
     bugs: Optional[list[Bug]] = None
 
 
+# Data model for bug history
+
+
+class Change(BaseModel):
+    field_name: str
+    removed: str
+    added: str
+    attachment_id: Optional[int] = None
+
+
+class History(BaseModel):
+    when: datetime
+    who: str
+    changes: list[Change]
+
+
+class BugHistory(BaseModel):
+    id: int
+    alias: Optional[list[str]] = None
+    history: list[History]
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_unset=True)
+
+
+class BugsHistory(BaseModel):
+    faults: Optional[list[Any]] = None
+    bugs: Optional[list[BugHistory]] = None
+
+
 # Data models for update requests
 
 
@@ -329,6 +359,23 @@ class Bugzilla:
         bugs = search_result.bugs
         if not bugs:
             return None
+        assert len(bugs) == 1
+        return bugs[0]
+
+    def bug_history(
+        self, bug_id: int, new_since: Optional[datetime] = None
+    ) -> BugHistory:
+        params = {}
+        if new_since is not None:
+            params["new_since"] = new_since.strftime("%Y-%m-%dT%H:%M:%SZ")
+        query_result = BugsHistory.model_validate(
+            self.request("GET", f"bug/{bug_id}/history", params=params)
+        )
+        if query_result.faults:
+            raise BugzillaError(query_result.faults)
+        bugs = query_result.bugs
+        if bugs is None:
+            raise BugzillaError("Empty bugs list but no faults")
         assert len(bugs) == 1
         return bugs[0]
 
