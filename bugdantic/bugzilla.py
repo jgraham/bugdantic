@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping, MutableMapping, Optional
+from urllib.parse import urljoin
 
 import httpx
 from pydantic import BaseModel, ConfigDict
@@ -283,7 +284,7 @@ class Bugzilla:
         if path.startswith("/"):
             path = path[1:]
 
-        url = f"{self.config.base_url}/rest/{path}"
+        url = urljoin(self.config.base_url, f"/rest/{path}")
 
         if self.config.allow_writes or method in {"GET", "OPTIONS", "HEAD"}:
             print(method, path, headers, json_body)
