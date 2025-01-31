@@ -22,5 +22,5 @@ def test_bug_include_all(bugzilla):
 
 
 def test_bug_history_full(bugzilla):
-    result = bugzilla.bug_history(975444)
-    assert result.id == 975444
+    result = bugzilla.bug_history(1886129)
+    assert result.id == 1886129

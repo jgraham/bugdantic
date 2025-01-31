@@ -134,8 +134,8 @@ class History(BaseModel):
 
 class BugHistory(BaseModel):
     id: int
-    alias: Optional[list[str]] = None
     history: list[History]
+    alias: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return self.model_dump(exclude_unset=True)
