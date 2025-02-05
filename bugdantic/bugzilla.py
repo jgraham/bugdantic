@@ -395,9 +395,10 @@ class Bugzilla:
 
         results: list[Bug] = []
         while True:
-            search_result = BugSearch.model_validate(
-                self.request("GET", "bug", params=query, include_fields=include_fields)
+            response = self.request(
+                "GET", "bug", params=query, include_fields=include_fields
             )
+            search_result = BugSearch.model_validate(response)
             if search_result.faults:
                 raise BugzillaError(search_result.faults)
             if search_result.bugs is not None:
@@ -405,7 +406,10 @@ class Bugzilla:
                 if not paginate or len(search_result.bugs) < page_size:
                     break
             else:
-                raise BugzillaError("Empty bugs list but no faults")
+                logging.error(
+                    f"Invalid bugzilla response object: {json.dumps(response)}"
+                )
+                raise BugzillaError("Response contained neither bugs nor faults fields")
 
             query["offset"] = str(int(query["offset"]) + page_size)
 
@@ -436,7 +440,10 @@ class Bugzilla:
             if update_result.faults:
                 raise BugzillaError(update_result.faults)
             if update_result.bugs is None:
-                raise BugzillaError("Empty bugs list but no faults")
+                logging.error(
+                    f"Invalid bugzilla response object: {json.dumps(response)}"
+                )
+                raise BugzillaError("Response contained neither bugs nor faults fields")
             return update_result.bugs
 
         return []
