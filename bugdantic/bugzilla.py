@@ -389,11 +389,13 @@ class Bugzilla:
 
     def search(
         self,
-        query: dict[str, str],
+        query: QueryParams,
         include_fields: Optional[list[str]] = None,
         page_size: int = 100,
     ) -> list[Bug]:
+        query = {**query}
         paginate = False
+        offset = 0
         if "limit" not in query and "offset" not in query and page_size > 0:
             query["limit"] = str(page_size)
             query["offset"] = "0"
@@ -417,7 +419,8 @@ class Bugzilla:
                 )
                 raise BugzillaError("Response contained neither bugs nor faults fields")
 
-            query["offset"] = str(int(query["offset"]) + page_size)
+            offset += page_size
+            query["offset"] = str(offset)
 
         return results
 
