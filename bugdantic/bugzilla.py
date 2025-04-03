@@ -3,13 +3,16 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Mapping, MutableMapping, Optional
+from typing import Any, Mapping, MutableMapping, Optional, Sequence
 from urllib.parse import urljoin
 
 import httpx
 from pydantic import BaseModel, ConfigDict
 
 Json = dict[str, "Json"] | list["Json"] | str | int | float | bool | None
+
+QueryValue = Optional[str | int | float | bool]
+QueryParams = Mapping[str, QueryValue | Sequence[QueryValue]]
 
 
 class BugzillaError(Exception):
@@ -131,7 +134,6 @@ class BugSearch(BaseModel):
 
 
 # Data model for bug history
-
 
 
 class BugHistory(BaseModel):
@@ -308,12 +310,14 @@ class Bugzilla:
         path: str,
         include_fields: Optional[list[str]] = None,
         exclude_fields: Optional[list[str]] = None,
-        params: Optional[dict[str, str]] = None,
+        params: Optional[QueryParams] = None,
         headers: Optional[dict[str, str]] = None,
         json_body: Optional[MutableMapping[str, Json]] = None,
     ) -> Mapping[str, Json]:
         if params is None:
             params = {}
+        else:
+            params = {**params}
 
         if include_fields is not None:
             params["include_fields"] = ",".join(include_fields)
