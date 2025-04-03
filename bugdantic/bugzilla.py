@@ -55,6 +55,19 @@ class Flag(BaseModel):
     requestee: str
 
 
+class Change(BaseModel):
+    field_name: str
+    removed: str
+    added: str
+    attachment_id: Optional[int] = None
+
+
+class History(BaseModel):
+    when: datetime
+    who: str
+    changes: list[Change]
+
+
 class Bug(BaseModel):
     actual_time: Optional[float] = None
     alias: Optional[list[str]] = None
@@ -79,6 +92,7 @@ class Bug(BaseModel):
     is_confirmed: Optional[bool] = None
     is_open: Optional[bool] = None
     is_creator_accessible: Optional[bool] = None
+    history: Optional[list[History]] = None
     keywords: Optional[list[str]] = None
     last_change_time: Optional[datetime] = None
     op_sys: Optional[str] = None
@@ -118,18 +132,6 @@ class BugSearch(BaseModel):
 
 # Data model for bug history
 
-
-class Change(BaseModel):
-    field_name: str
-    removed: str
-    added: str
-    attachment_id: Optional[int] = None
-
-
-class History(BaseModel):
-    when: datetime
-    who: str
-    changes: list[Change]
 
 
 class BugHistory(BaseModel):
