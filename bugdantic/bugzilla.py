@@ -370,6 +370,7 @@ class Bugzilla:
     def bug(
         self, bug_id: int, include_fields: Optional[list[str]] = None
     ) -> Optional[Bug]:
+        """Get a single bug specified by id"""
         search_result = BugSearch.model_validate(
             self.request("GET", f"bug/{bug_id}", include_fields=include_fields)
         )
@@ -381,9 +382,29 @@ class Bugzilla:
         assert len(bugs) == 1
         return bugs[0]
 
+    def bugs(
+        self,
+        bug_ids: Sequence[int],
+        include_fields: Optional[list[str]] = None,
+        page_size: int = 100,
+    ) -> list[Bug]:
+        """Get multiple bugs specified by id"""
+        results: list[Bug] = []
+        for bug_ids_chunk in [
+            bug_ids[n : n + page_size] for n in range(0, len(bug_ids), page_size)
+        ]:
+            results.extend(
+                self.search(
+                    {"id": ",".join(str(id) for id in bug_ids_chunk)},
+                    include_fields=include_fields,
+                )
+            )
+        return results
+
     def bug_history(
         self, bug_id: int, new_since: Optional[datetime] = None
     ) -> BugHistory:
+        """Get the history of a single bug"""
         params = {}
         if new_since is not None:
             params["new_since"] = new_since.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -404,6 +425,7 @@ class Bugzilla:
         include_fields: Optional[list[str]] = None,
         page_size: int = 100,
     ) -> list[Bug]:
+        """Search for bugs using the bugzilla query API"""
         query = {**query}
         paginate = False
         offset = 0
@@ -438,6 +460,7 @@ class Bugzilla:
     def update_bugs(
         self, update_params: BugUpdate, bug_id: Optional[int] = None
     ) -> list[BugUpdateResponse]:
+        """Update one or more bugs"""
         if bug_id is None:
             if update_params.ids:
                 id_str = str(update_params.ids[0])
