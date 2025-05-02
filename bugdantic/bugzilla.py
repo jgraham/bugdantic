@@ -118,6 +118,7 @@ class Bug(BaseModel):
 
     # BMO specific custom fields
     cf_last_resolved: Optional[datetime] = None
+    cf_size_estimate: Optional[str] = None
     cf_user_story: Optional[str] = None
     cf_webcompat_priority: Optional[str] = None
     cf_webcompat_score: Optional[str] = None
@@ -220,6 +221,15 @@ class WebcompatPriority(enum.StrEnum):
     requested = "?"
 
 
+class SizeEstimate(enum.StrEnum):
+    unset = "---"
+    XS = "XS"
+    S = "S"
+    M = "M"
+    L = "L"
+    XL = "XL"
+
+
 class BugUpdate(BaseModel):
     ids: Optional[list[int]] = None
     id_or_alias: Optional[int | str] = None
@@ -259,6 +269,7 @@ class BugUpdate(BaseModel):
     work_time: Optional[str] = None
 
     # BMO specific custom fields
+    cf_size_estimate: Optional[SizeEstimate] = None
     cf_user_story: Optional[str] = None
     cf_webcompat_priority: Optional[WebcompatPriority] = None
     cf_webcompat_score: Optional[str] = None
