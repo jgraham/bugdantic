@@ -73,7 +73,7 @@ class History(BaseModel):
 
 class Bug(BaseModel):
     actual_time: Optional[float] = None
-    alias: Optional[list[str]] = None
+    alias: Optional[str] = None
     assigned_to: Optional[str] = None
     assigned_to_detail: Optional[User] = None
     blocks: Optional[list[int]] = None
@@ -234,7 +234,7 @@ class BugUpdate(BaseModel):
     ids: Optional[list[int]] = None
     id_or_alias: Optional[int | str] = None
 
-    alias: Optional[list[Any]] = None
+    alias: Optional[str] = None
     assigned_to: Optional[str] = None
     blocks: Optional[BugRelationUpdate] = None
     depends_on: Optional[BugRelationUpdate] = None
