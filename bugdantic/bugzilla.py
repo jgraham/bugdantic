@@ -55,7 +55,7 @@ class Flag(BaseModel):
     modification_date: datetime
     status: str
     setter: str
-    requestee: str
+    requestee: Optional[str] = None
 
 
 class Change(BaseModel):
@@ -69,6 +69,50 @@ class History(BaseModel):
     when: datetime
     who: str
     changes: list[Change]
+
+
+class BugComment(BaseModel):
+    """A comment retrieved from a bug (cf. :class:`Comment`, used in updates)."""
+
+    id: Optional[int] = None
+    bug_id: Optional[int] = None
+    attachment_id: Optional[int] = None
+    count: Optional[int] = None
+    text: Optional[str] = None
+    raw_text: Optional[str] = None
+    creator: Optional[str] = None
+    time: Optional[datetime] = None
+    creation_time: Optional[datetime] = None
+    is_private: Optional[bool] = None
+    is_markdown: Optional[bool] = None
+    tags: Optional[list[str]] = None
+
+    model_config = ConfigDict(extra="allow")
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_unset=True)
+
+
+class Attachment(BaseModel):
+    id: Optional[int] = None
+    bug_id: Optional[int] = None
+    file_name: Optional[str] = None
+    summary: Optional[str] = None
+    content_type: Optional[str] = None
+    creator: Optional[str] = None
+    creation_time: Optional[datetime] = None
+    last_change_time: Optional[datetime] = None
+    size: Optional[int] = None
+    data: Optional[str] = None
+    is_private: Optional[bool] = None
+    is_obsolete: Optional[bool] = None
+    is_patch: Optional[bool] = None
+    flags: Optional[list[Flag]] = None
+
+    model_config = ConfigDict(extra="allow")
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_unset=True)
 
 
 class Bug(BaseModel):
@@ -122,6 +166,9 @@ class Bug(BaseModel):
     cf_user_story: Optional[str] = None
     cf_webcompat_priority: Optional[str] = None
     cf_webcompat_score: Optional[str] = None
+
+    comments: Optional[list[BugComment]] = None
+    attachments: Optional[list[Attachment]] = None
 
     model_config = ConfigDict(extra="allow")
 

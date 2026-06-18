@@ -32,3 +32,14 @@ def test_serach_include_history(bugzilla):
     for expected_id, bug in zip(bugs, sorted(result, key=lambda x: x.id)):
         assert bug.id == expected_id
         assert isinstance(bug.history, list)
+
+
+def test_search_include_comments_and_attachments(bugzilla):
+    bugs = [423488, 1749533]
+    result = bugzilla.search(
+        {"id": bugs}, include_fields=["id", "comments", "attachments"]
+    )
+    for expected_id, bug in zip(bugs, sorted(result, key=lambda x: x.id)):
+        assert bug.id == expected_id
+        assert isinstance(bug.comments, list)
+        assert isinstance(bug.attachments, list)
