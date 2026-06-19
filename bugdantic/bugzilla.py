@@ -419,6 +419,9 @@ class Bugzilla:
 
         if self.config.allow_writes or method in {"GET", "OPTIONS", "HEAD"}:
             retry = 0
+            if self.config.max_retries < 0:
+                raise ValueError("max_retries must be at least 0")
+            response = None
             while retry <= self.config.max_retries:
                 retry += 1
                 response = self.client.request(
@@ -426,6 +429,7 @@ class Bugzilla:
                 )
                 if response.status_code != 503:
                     break
+            assert response is not None
             try:
                 response.raise_for_status()
             except Exception as e:
