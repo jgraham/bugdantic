@@ -1,3 +1,4 @@
+import base64
 import enum
 import json
 import logging
@@ -7,7 +8,7 @@ from typing import Any, Mapping, MutableMapping, Optional, Sequence
 from urllib.parse import urljoin
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 Json = dict[str, "Json"] | list["Json"] | str | int | float | bool | None
 
@@ -339,6 +340,34 @@ class BugsUpdateResponse(BaseModel):
     faults: Optional[list[Any]] = None
 
 
+# Data models for creating attachments
+
+
+class AttachmentCreate(BaseModel):
+    ids: Optional[list[int | str]] = None
+    data: str
+    file_name: str
+    summary: str
+    content_type: Optional[str] = None
+    comment: Optional[str] = None
+    is_markdown: Optional[bool] = None
+    is_patch: Optional[bool] = None
+    is_private: Optional[bool] = None
+    flags: Optional[list[FlagChange]] = None
+    bug_flags: Optional[list[FlagChange]] = None
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def encode_data(cls, value: bytes | str) -> str:
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode("ascii")
+        return value
+
+
+class AttachmentCreateResponse(BaseModel):
+    ids: list[int]
+
+
 @dataclass
 class BugzillaConfig:
     base_url: str
@@ -535,5 +564,30 @@ class Bugzilla:
                 )
                 raise BugzillaError("Response contained neither bugs nor faults fields")
             return update_result.bugs
+
+        return []
+
+    def create_attachment(
+        self, attachment: AttachmentCreate, bug_id: Optional[int] = None
+    ) -> list[int]:
+        """Add an attachment to one or more bugs"""
+        if bug_id is not None:
+            id_str = str(bug_id)
+        elif attachment.ids:
+            id_str = str(attachment.ids[0])
+        else:
+            raise ValueError("Missing bug ids for attachment")
+
+        path = f"bug/{id_str}/attachment"
+
+        json_body = attachment.model_dump(exclude_none=True)
+        if not json_body.get("ids"):
+            json_body["ids"] = [bug_id]
+
+        response = self.request("POST", path, json_body=json_body)
+
+        if self.config.allow_writes:
+            create_result = AttachmentCreateResponse.model_validate(response)
+            return create_result.ids
 
         return []
