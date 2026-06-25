@@ -4,11 +4,11 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Mapping, MutableMapping, Optional, Sequence
+from typing import Any, Mapping, MutableMapping, Optional, Sequence, Self
 from urllib.parse import urljoin
 
 import httpx
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 Json = dict[str, "Json"] | list["Json"] | str | int | float | bool | None
 
@@ -348,7 +348,7 @@ class AttachmentCreate(BaseModel):
     data: str
     file_name: str
     summary: str
-    content_type: Optional[str] = None
+    content_type: str
     comment: Optional[str] = None
     is_markdown: Optional[bool] = None
     is_patch: Optional[bool] = None
@@ -356,16 +356,60 @@ class AttachmentCreate(BaseModel):
     flags: Optional[list[FlagChange]] = None
     bug_flags: Optional[list[FlagChange]] = None
 
-    @field_validator("data", mode="before")
     @classmethod
-    def encode_data(cls, value: bytes | str) -> str:
-        if isinstance(value, bytes):
-            return base64.b64encode(value).decode("ascii")
-        return value
+    def from_raw_data(
+        cls,
+        data: str | bytes,
+        file_name: str,
+        summary: str,
+        content_type: str,
+        ids: Optional[list[int | str]] = None,
+        comment: Optional[str] = None,
+        is_markdown: Optional[bool] = None,
+        is_patch: Optional[bool] = None,
+        is_private: Optional[bool] = None,
+        flags: Optional[list[FlagChange]] = None,
+        bug_flags: Optional[list[FlagChange]] = None,
+    ) -> Self:
+        if isinstance(data, str):
+            data = data.encode("utf8")
+        return cls(
+            ids=ids,
+            data=base64.b64encode(data).decode("ascii"),
+            file_name=file_name,
+            summary=summary,
+            content_type=content_type,
+            comment=comment,
+            is_markdown=is_markdown,
+            is_patch=is_patch,
+            is_private=is_private,
+            flags=flags,
+            bug_flags=bug_flags,
+        )
 
 
 class AttachmentCreateResponse(BaseModel):
-    ids: list[int]
+    attacher: str
+    bug_id: int
+    content_type: str
+    creation_time: datetime
+    creator: str
+    creator_detail: User
+    data: str
+    description: str
+    file_name: str
+    flags: Optional[list[FlagChange]]
+    id: int
+    is_obsolete: bool
+    is_patch: bool
+    is_private: bool
+    last_change_time: datetime
+    size: int
+    summary: str
+
+
+class AttachmentsCreateResponse(BaseModel):
+    attachments: Mapping[str, AttachmentCreateResponse]
 
 
 @dataclass
@@ -573,7 +617,7 @@ class Bugzilla:
 
     def create_attachment(
         self, attachment: AttachmentCreate, bug_id: Optional[int] = None
-    ) -> list[int]:
+    ) -> list[AttachmentCreateResponse]:
         """Add an attachment to one or more bugs"""
         if bug_id is not None:
             id_str = str(bug_id)
@@ -591,7 +635,7 @@ class Bugzilla:
         response = self.request("POST", path, json_body=json_body)
 
         if self.config.allow_writes:
-            create_result = AttachmentCreateResponse.model_validate(response)
-            return create_result.ids
+            create_result = AttachmentsCreateResponse.model_validate(response)
+            return list(create_result.attachments.values())
 
         return []
