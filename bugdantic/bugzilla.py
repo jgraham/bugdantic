@@ -4,10 +4,21 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Mapping, MutableMapping, Optional, Sequence, Self
+from typing import (
+    Any,
+    Generic,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Self,
+    TypeVar,
+    cast,
+)
 from urllib.parse import urljoin
 
 import httpx
+import pydantic
 from pydantic import BaseModel, ConfigDict
 
 Json = dict[str, "Json"] | list["Json"] | str | int | float | bool | None
@@ -412,6 +423,13 @@ class AttachmentsCreateResponse(BaseModel):
     attachments: Mapping[str, AttachmentCreateResponse]
 
 
+class ErrorResponse(BaseModel):
+    code: int
+    message: str
+    error: bool
+    documentation: str
+
+
 @dataclass
 class BugzillaConfig:
     base_url: str
@@ -420,6 +438,20 @@ class BugzillaConfig:
     allow_writes: bool = False
     # Number of times to retry a request if there's a 503 error
     max_retries: int = 1
+
+
+BugType = TypeVar("BugType", bound=BaseModel)
+
+
+class BugSearchGeneric(BaseModel, Generic[BugType]):
+    bugs: Optional[list[BugType]] = None
+    faults: Optional[list[Any]] = None
+
+
+def bug_search_model(bug_type: type[BugType]) -> type[BugSearchGeneric[BugType]]:
+    return cast(
+        type[BugSearchGeneric[BugType]], BugSearchGeneric.__class_getitem__(bug_type)
+    )
 
 
 class Bugzilla:
@@ -491,13 +523,27 @@ class Bugzilla:
 """)
             return {}
 
-    def bug(
-        self, bug_id: int, include_fields: Optional[list[str]] = None
-    ) -> Optional[Bug]:
+    def check_error(self, data: Mapping[str, Json]) -> Mapping[str, Json]:
+        try:
+            err = ErrorResponse.model_validate(data)
+            if err.error:
+                raise BugzillaError(err.message)
+        except pydantic.ValidationError:
+            pass
+        return data
+
+    def _bug(
+        self,
+        bug_id: int,
+        bug_type: type[BugType],
+        include_fields: Optional[list[str]] = None,
+    ) -> Optional[BugType]:
         """Get a single bug specified by id"""
-        search_result = BugSearch.model_validate(
+
+        data = self.check_error(
             self.request("GET", f"bug/{bug_id}", include_fields=include_fields)
         )
+        search_result = bug_search_model(bug_type).model_validate(data)
         if search_result.faults:
             raise BugzillaError(search_result.faults)
         bugs = search_result.bugs
@@ -505,6 +551,15 @@ class Bugzilla:
             return None
         assert len(bugs) == 1
         return bugs[0]
+
+    def bug(
+        self, bug_id: int, include_fields: Optional[list[str]] = None
+    ) -> Optional[Bug]:
+        return self._bug(bug_id, Bug, include_fields)
+
+    def bug_as(self, bug_id: int, bug_type: type[BugType]) -> Optional[BugType]:
+        include_fields = list(bug_type.model_fields.keys())
+        return self._bug(bug_id, bug_type, include_fields)
 
     def bugs(
         self,
@@ -525,6 +580,25 @@ class Bugzilla:
             )
         return results
 
+    def bugs_as(
+        self,
+        bug_ids: Sequence[int],
+        bug_type: type[BugType],
+        page_size: int = 100,
+    ) -> list[Bug]:
+        """Get multiple bugs specified by id"""
+        results: list[Bug] = []
+        for bug_ids_chunk in [
+            bug_ids[n : n + page_size] for n in range(0, len(bug_ids), page_size)
+        ]:
+            results.extend(
+                self.search_as(
+                    {"id": ",".join(str(id) for id in bug_ids_chunk)},
+                    bug_type,
+                )
+            )
+        return results
+
     def bug_history(
         self, bug_id: int, new_since: Optional[datetime] = None
     ) -> BugHistory:
@@ -532,9 +606,10 @@ class Bugzilla:
         params = {}
         if new_since is not None:
             params["new_since"] = new_since.strftime("%Y-%m-%dT%H:%M:%SZ")
-        query_result = BugsHistory.model_validate(
+        data = self.check_error(
             self.request("GET", f"bug/{bug_id}/history", params=params)
         )
+        query_result = BugsHistory.model_validate(data)
         if query_result.faults:
             raise BugzillaError(query_result.faults)
         bugs = query_result.bugs
@@ -543,13 +618,15 @@ class Bugzilla:
         assert len(bugs) == 1
         return bugs[0]
 
-    def search(
+    def _search(
         self,
+        bug_type: type[BugType],
         query: QueryParams,
         include_fields: Optional[list[str]] = None,
         page_size: int = 100,
-    ) -> list[Bug]:
+    ) -> list[BugType]:
         """Search for bugs using the bugzilla query API"""
+
         query = {**query}
         paginate = False
         offset = 0
@@ -558,12 +635,12 @@ class Bugzilla:
             query["offset"] = "0"
             paginate = True
 
-        results: list[Bug] = []
+        results: list[BugType] = []
         while True:
-            response = self.request(
-                "GET", "bug", params=query, include_fields=include_fields
+            response = self.check_error(
+                self.request("GET", "bug", params=query, include_fields=include_fields)
             )
-            search_result = BugSearch.model_validate(response)
+            search_result = bug_search_model(bug_type).model_validate(response)
             if search_result.faults:
                 raise BugzillaError(search_result.faults)
             if search_result.bugs is not None:
@@ -580,6 +657,20 @@ class Bugzilla:
             query["offset"] = str(offset)
 
         return results
+
+    def search(
+        self,
+        query: QueryParams,
+        include_fields: Optional[list[str]] = None,
+        page_size: int = 100,
+    ) -> list[Bug]:
+        return self._search(Bug, query, include_fields, page_size)
+
+    def search_as(
+        self, query: QueryParams, bug_type: type[BugType], page_size: int = 100
+    ):
+        include_fields = list(bug_type.model_fields.keys())
+        return self._search(bug_type, query, include_fields, page_size)
 
     def update_bugs(
         self, update_params: BugUpdate, bug_id: Optional[int] = None
@@ -600,7 +691,7 @@ class Bugzilla:
 
         json_body = update_params.model_dump(exclude_none=True)
 
-        response = self.request("PUT", path, json_body=json_body)
+        response = self.check_error(self.request("PUT", path, json_body=json_body))
 
         if self.config.allow_writes:
             update_result = BugsUpdateResponse.model_validate(response)
@@ -632,7 +723,7 @@ class Bugzilla:
         if not json_body.get("ids"):
             json_body["ids"] = [bug_id]
 
-        response = self.request("POST", path, json_body=json_body)
+        response = self.check_error(self.request("POST", path, json_body=json_body))
 
         if self.config.allow_writes:
             create_result = AttachmentsCreateResponse.model_validate(response)
