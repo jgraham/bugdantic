@@ -1,5 +1,5 @@
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from bugdantic import Bugzilla, BugzillaConfig
 from bugdantic.bugzilla import BugComment
@@ -69,3 +69,14 @@ def test_search_as(bugzilla):
         assert isinstance(bug, BugData)
         assert bug.id == expected_id
         assert isinstance(bug.comments, list)
+
+
+def test_bug_as_alias(bugzilla):
+    class BugData(BaseModel):
+        id: int
+        user_story: str = Field(alias="cf_user_story")
+
+    result = bugzilla.bug_as(975444, BugData)
+    assert isinstance(result, BugData)
+    assert result.id == 975444
+    assert result.user_story is not None

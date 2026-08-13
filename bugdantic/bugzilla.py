@@ -454,6 +454,13 @@ def bug_search_model(bug_type: type[BugType]) -> type[BugSearchGeneric[BugType]]
     )
 
 
+def model_field_names(model: type[BaseModel]) -> list[str]:
+    return [
+        field.alias if field.alias else name
+        for name, field in model.model_fields.items()
+    ]
+
+
 class Bugzilla:
     def __init__(self, config: BugzillaConfig):
         self.config = config
@@ -558,7 +565,7 @@ class Bugzilla:
         return self._bug(bug_id, Bug, include_fields)
 
     def bug_as(self, bug_id: int, bug_type: type[BugType]) -> Optional[BugType]:
-        include_fields = list(bug_type.model_fields.keys())
+        include_fields = model_field_names(bug_type)
         return self._bug(bug_id, bug_type, include_fields)
 
     def bugs(
@@ -669,7 +676,7 @@ class Bugzilla:
     def search_as(
         self, query: QueryParams, bug_type: type[BugType], page_size: int = 100
     ):
-        include_fields = list(bug_type.model_fields.keys())
+        include_fields = model_field_names(bug_type)
         return self._search(bug_type, query, include_fields, page_size)
 
     def update_bugs(
