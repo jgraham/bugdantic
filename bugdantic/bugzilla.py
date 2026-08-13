@@ -2,8 +2,9 @@ import base64
 import enum
 import json
 import logging
+import time
 from collections.abc import Mapping, MutableMapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import (
     Any,
@@ -436,6 +437,7 @@ class BugzillaConfig:
     allow_writes: bool = False
     # Number of times to retry a request if there's a 503 error
     max_retries: int = 1
+    retry_status_codes: set[int] = field(default_factory=lambda: {502, 503})
 
 
 BugType = TypeVar("BugType", bound=BaseModel)
@@ -496,18 +498,30 @@ class Bugzilla:
         path = path.removeprefix("/")
 
         url = urljoin(self.config.base_url, f"/rest/{path}")
-
+        logging.debug("Fetching from bugzilla: %s", url)
         if self.config.allow_writes or method in {"GET", "OPTIONS", "HEAD"}:
             retry = 0
             if self.config.max_retries < 0:
                 raise ValueError("max_retries must be at least 0")
             response = None
             while retry <= self.config.max_retries:
+                if retry != 0:
+                    wait_time = 2**retry
+                    logging.debug(
+                        "Request failed, retrying %s/%s, sleeping %ss",
+                        retry,
+                        self.config.max_retries,
+                        wait_time,
+                    )
+                    time.sleep(wait_time)
                 retry += 1
-                response = self.client.request(
-                    method, url, params=params, headers=headers, json=json_body
-                )
-                if response.status_code != 503:
+                try:
+                    response = self.client.request(
+                        method, url, params=params, headers=headers, json=json_body
+                    )
+                except httpx.ReadTimeout:
+                    continue
+                if response.status_code not in self.config.retry_status_codes:
                     break
             assert response is not None
             try:
