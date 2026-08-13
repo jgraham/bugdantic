@@ -25,3 +25,6 @@ test = [
   "pytest==8.4.2",
   "pytest-ruff==0.5",
 ]
+
+[tool.mypy]
+disallow_untyped_defs = true

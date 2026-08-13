@@ -592,9 +592,9 @@ class Bugzilla:
         bug_ids: Sequence[int],
         bug_type: type[BugType],
         page_size: int = 100,
-    ) -> list[Bug]:
+    ) -> list[BugType]:
         """Get multiple bugs specified by id"""
-        results: list[Bug] = []
+        results: list[BugType] = []
         for bug_ids_chunk in [
             bug_ids[n : n + page_size] for n in range(0, len(bug_ids), page_size)
         ]:
@@ -675,7 +675,7 @@ class Bugzilla:
 
     def search_as(
         self, query: QueryParams, bug_type: type[BugType], page_size: int = 100
-    ):
+    ) -> list[BugType]:
         include_fields = model_field_names(bug_type)
         return self._search(bug_type, query, include_fields, page_size)
 
