@@ -1,12 +1,12 @@
 """Utility functions for working with cf_user_story fields that
 are used to store key: value pair data"""
 
-from collections import defaultdict
-from enum import IntEnum
-from dataclasses import dataclass
-
 import re
-from typing import Iterator, Optional, Mapping, Self
+from collections import defaultdict
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
+from enum import IntEnum
+from typing import Optional, Self
 
 
 def parse(

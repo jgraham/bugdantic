@@ -2,15 +2,13 @@ import base64
 import enum
 import json
 import logging
+from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import (
     Any,
     Generic,
-    Mapping,
-    MutableMapping,
     Optional,
-    Sequence,
     Self,
     TypeVar,
     cast,
@@ -495,8 +493,7 @@ class Bugzilla:
         if exclude_fields is not None:
             params["exclude_fields"] = ",".join(exclude_fields)
 
-        if path.startswith("/"):
-            path = path[1:]
+        path = path.removeprefix("/")
 
         url = urljoin(self.config.base_url, f"/rest/{path}")
 
@@ -515,13 +512,13 @@ class Bugzilla:
             assert response is not None
             try:
                 response.raise_for_status()
-            except Exception as e:
+            except Exception:
                 msg = "Request failed"
                 json_resp = response.json()
                 if json_resp:
                     msg += f"\n{json_resp.get('message')}"
                 logging.error(msg)
-                raise e
+                raise
             return response.json()
         else:
             logging.info(f"""Not updating, would send {method} request to {path} with body:

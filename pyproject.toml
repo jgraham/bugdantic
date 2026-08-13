@@ -20,11 +20,15 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-  "mypy==1.18.2",
-  "ruff==0.14.1",
-  "pytest==8.4.2",
+  "mypy==2.3.0",
+  "ruff==0.16.2",
+  "pytest==9.1.1",
   "pytest-ruff==0.5",
+  "ty==0.0.71",
 ]
 
 [tool.mypy]
 disallow_untyped_defs = true
+
+[tool.ruff.lint]
+ignore = ["UP045", "LOG015"]
