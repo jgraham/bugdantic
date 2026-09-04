@@ -80,3 +80,16 @@ def test_bug_as_alias(bugzilla):
     assert isinstance(result, BugData)
     assert result.id == 975444
     assert result.user_story is not None
+
+
+def test_bug_as_validation_alias(bugzilla):
+    class BugData(BaseModel):
+        id: int
+        user_story: str = Field(
+            validation_alias="cf_user_story", alias="raw_user_story"
+        )
+
+    result = bugzilla.bug_as(975444, BugData)
+    assert isinstance(result, BugData)
+    assert result.id == 975444
+    assert result.user_story is not None

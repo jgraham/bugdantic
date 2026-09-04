@@ -455,10 +455,19 @@ def bug_search_model(bug_type: type[BugType]) -> type[BugSearchGeneric[BugType]]
 
 
 def model_field_names(model: type[BaseModel]) -> list[str]:
-    return [
-        field.alias if field.alias else name
-        for name, field in model.model_fields.items()
-    ]
+    field_names = []
+    for name, field_obj in model.model_fields.items():
+        if field_obj.validation_alias is not None:
+            if not isinstance(field_obj.validation_alias, str):
+                raise ValueError(
+                    "Only string values for validation_alias are supported"
+                )
+            field_names.append(field_obj.validation_alias)
+        elif field_obj.alias is not None:
+            field_names.append(field_obj.alias)
+        else:
+            field_names.append(name)
+    return field_names
 
 
 class Bugzilla:
