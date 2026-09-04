@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import BaseModel, Field
 
@@ -45,6 +47,23 @@ def test_search_include_comments_and_attachments(bugzilla):
         assert bug.id == expected_id
         assert isinstance(bug.comments, list)
         assert isinstance(bug.attachments, list)
+        for item in bug.attachments:
+            assert "data" not in item
+
+
+def test_search_include_attachments_exclude_data(bugzilla):
+    bugs = [423488, 1749533]
+    result = bugzilla.search(
+        {"id": bugs},
+        include_fields=["id", "comments", "attachments"],
+        exclude_fields=["attachments.data"],
+    )
+    for expected_id, bug in zip(bugs, sorted(result, key=lambda x: x.id)):
+        assert bug.id == expected_id
+        assert isinstance(bug.comments, list)
+        assert isinstance(bug.attachments, list)
+        for item in bug.attachments:
+            assert "data" not in item
 
 
 def test_bug_as(bugzilla):
@@ -93,3 +112,15 @@ def test_bug_as_validation_alias(bugzilla):
     assert isinstance(result, BugData)
     assert result.id == 975444
     assert result.user_story is not None
+
+
+def test_bug_as_exclude(bugzilla):
+    class BugData(BaseModel):
+        id: int
+        attachments: list[dict[str, Any]]
+
+    result = bugzilla.bug_as(975444, BugData, exclude_fields=["attachments.data"])
+    assert isinstance(result, BugData)
+    assert result.id == 975444
+    assert result.attachments
+    assert all("data" not in item for item in result.attachments)

@@ -564,11 +564,17 @@ class Bugzilla:
         bug_id: int,
         bug_type: type[BugType],
         include_fields: Optional[list[str]] = None,
+        exclude_fields: Optional[list[str]] = None,
     ) -> Optional[BugType]:
         """Get a single bug specified by id"""
 
         data = self.check_error(
-            self.request("GET", f"bug/{bug_id}", include_fields=include_fields)
+            self.request(
+                "GET",
+                f"bug/{bug_id}",
+                include_fields=include_fields,
+                exclude_fields=exclude_fields,
+            )
         )
         search_result = bug_search_model(bug_type).model_validate(data)
         if search_result.faults:
@@ -580,18 +586,27 @@ class Bugzilla:
         return bugs[0]
 
     def bug(
-        self, bug_id: int, include_fields: Optional[list[str]] = None
+        self,
+        bug_id: int,
+        include_fields: Optional[list[str]] = None,
+        exclude_fields: Optional[list[str]] = None,
     ) -> Optional[Bug]:
-        return self._bug(bug_id, Bug, include_fields)
+        return self._bug(bug_id, Bug, include_fields, exclude_fields)
 
-    def bug_as(self, bug_id: int, bug_type: type[BugType]) -> Optional[BugType]:
+    def bug_as(
+        self,
+        bug_id: int,
+        bug_type: type[BugType],
+        exclude_fields: Optional[list[str]] = None,
+    ) -> Optional[BugType]:
         include_fields = model_field_names(bug_type)
-        return self._bug(bug_id, bug_type, include_fields)
+        return self._bug(bug_id, bug_type, include_fields, exclude_fields)
 
     def bugs(
         self,
         bug_ids: Sequence[int],
         include_fields: Optional[list[str]] = None,
+        exclude_fields: Optional[list[str]] = None,
         page_size: int = 100,
     ) -> list[Bug]:
         """Get multiple bugs specified by id"""
@@ -603,6 +618,7 @@ class Bugzilla:
                 self.search(
                     {"id": ",".join(str(id) for id in bug_ids_chunk)},
                     include_fields=include_fields,
+                    exclude_fields=exclude_fields,
                 )
             )
         return results
@@ -611,6 +627,7 @@ class Bugzilla:
         self,
         bug_ids: Sequence[int],
         bug_type: type[BugType],
+        exclude_fields: Optional[list[str]] = None,
         page_size: int = 100,
     ) -> list[BugType]:
         """Get multiple bugs specified by id"""
@@ -622,6 +639,7 @@ class Bugzilla:
                 self.search_as(
                     {"id": ",".join(str(id) for id in bug_ids_chunk)},
                     bug_type,
+                    exclude_fields,
                 )
             )
         return results
@@ -650,6 +668,7 @@ class Bugzilla:
         bug_type: type[BugType],
         query: QueryParams,
         include_fields: Optional[list[str]] = None,
+        exclude_fields: Optional[list[str]] = None,
         page_size: int = 100,
     ) -> list[BugType]:
         """Search for bugs using the bugzilla query API"""
@@ -665,7 +684,13 @@ class Bugzilla:
         results: list[BugType] = []
         while True:
             response = self.check_error(
-                self.request("GET", "bug", params=query, include_fields=include_fields)
+                self.request(
+                    "GET",
+                    "bug",
+                    params=query,
+                    include_fields=include_fields,
+                    exclude_fields=exclude_fields,
+                )
             )
             search_result = bug_search_model(bug_type).model_validate(response)
             if search_result.faults:
@@ -689,15 +714,20 @@ class Bugzilla:
         self,
         query: QueryParams,
         include_fields: Optional[list[str]] = None,
+        exclude_fields: Optional[list[str]] = None,
         page_size: int = 100,
     ) -> list[Bug]:
-        return self._search(Bug, query, include_fields, page_size)
+        return self._search(Bug, query, include_fields, exclude_fields, page_size)
 
     def search_as(
-        self, query: QueryParams, bug_type: type[BugType], page_size: int = 100
+        self,
+        query: QueryParams,
+        bug_type: type[BugType],
+        exclude_fields: Optional[list[str]] = None,
+        page_size: int = 100,
     ) -> list[BugType]:
         include_fields = model_field_names(bug_type)
-        return self._search(bug_type, query, include_fields, page_size)
+        return self._search(bug_type, query, include_fields, exclude_fields, page_size)
 
     def update_bugs(
         self, update_params: BugUpdate, bug_id: Optional[int] = None
