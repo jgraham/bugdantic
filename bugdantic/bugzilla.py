@@ -422,6 +422,17 @@ class AttachmentsCreateResponse(BaseModel):
     attachments: Mapping[str, AttachmentCreateResponse]
 
 
+class CommentCreate(BaseModel):
+    comment: str
+    is_private: Optional[bool] = None
+    is_markdown: Optional[bool] = None
+    work_time: Optional[float] = None
+
+
+class CommentCreateResponse(BaseModel):
+    id: int
+
+
 class ErrorResponse(BaseModel):
     code: int
     message: str
@@ -787,3 +798,16 @@ class Bugzilla:
             return list(create_result.attachments.values())
 
         return []
+
+    def add_comment(self, bug_id: int, comment: CommentCreate) -> Optional[int]:
+        """Add a comment to a bug, returning the id of the new comment"""
+        path = f"bug/{bug_id}/comment"
+
+        json_body = comment.model_dump(exclude_none=True)
+
+        response = self.check_error(self.request("POST", path, json_body=json_body))
+
+        if self.config.allow_writes:
+            return CommentCreateResponse.model_validate(response).id
+
+        return None
