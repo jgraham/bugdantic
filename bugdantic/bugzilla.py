@@ -97,6 +97,7 @@ class BugComment(BaseModel):
     is_private: Optional[bool] = None
     is_markdown: Optional[bool] = None
     tags: Optional[list[str]] = None
+    reactions: Optional[dict[str, int]] = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -433,6 +434,10 @@ class CommentCreateResponse(BaseModel):
     id: int
 
 
+class CommentsResponse(BaseModel):
+    comments: Mapping[str, BugComment]
+
+
 class ErrorResponse(BaseModel):
     code: int
     message: str
@@ -654,6 +659,33 @@ class Bugzilla:
                 )
             )
         return results
+
+    def comments(
+        self,
+        comment_ids: Sequence[int],
+        include_fields: Optional[list[str]] = None,
+        batch_size: int = 100,
+    ) -> Mapping[int, BugComment]:
+        """Get comments specified by their ids.
+
+        The API accepts a list of comment ids with a single id in the path,
+        and the remainder are passed as repeated comment_ids parameters."""
+        rv: dict[int, BugComment] = {}
+        for offset in range(0, len(comment_ids), batch_size):
+            batch = comment_ids[offset : offset + batch_size]
+            response = self.check_error(
+                self.request(
+                    "GET",
+                    f"bug/comment/{batch[0]}",
+                    include_fields=include_fields,
+                    params={"comment_ids": [str(item) for item in batch[1:]]},
+                )
+            )
+            result = CommentsResponse.model_validate(response)
+            for comment in result.comments.values():
+                assert comment.id is not None
+                rv[comment.id] = comment
+        return rv
 
     def bug_history(
         self, bug_id: int, new_since: Optional[datetime] = None
