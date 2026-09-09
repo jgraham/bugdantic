@@ -97,6 +97,7 @@ class BugComment(BaseModel):
     is_private: Optional[bool] = None
     is_markdown: Optional[bool] = None
     tags: Optional[list[str]] = None
+    reactions: Optional[dict[str, int]] = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -433,6 +434,22 @@ class CommentCreateResponse(BaseModel):
     id: int
 
 
+CommentType = TypeVar("CommentType", bound=BaseModel)
+
+
+class CommentsResponseGeneric(BaseModel, Generic[CommentType]):
+    comments: Mapping[str, CommentType]
+
+
+def comments_response_model(
+    comment_type: type[CommentType],
+) -> type[CommentsResponseGeneric[CommentType]]:
+    return cast(
+        type[CommentsResponseGeneric[CommentType]],
+        CommentsResponseGeneric.__class_getitem__(comment_type),
+    )
+
+
 class ErrorResponse(BaseModel):
     code: int
     message: str
@@ -654,6 +671,63 @@ class Bugzilla:
                 )
             )
         return results
+
+    def _comments(
+        self,
+        comment_ids: Sequence[int],
+        comment_type: type[CommentType],
+        include_fields: Optional[list[str]] = None,
+        exclude_fields: Optional[list[str]] = None,
+        page_size: int = 100,
+    ) -> list[CommentType]:
+        """Get comments specified by their ids.
+
+        The API accepts a list of comment ids with a single id in the path,
+        and the remainder are passed as repeated comment_ids parameters."""
+        results: list[CommentType] = []
+        for comment_ids_chunk in [
+            comment_ids[n : n + page_size]
+            for n in range(0, len(comment_ids), page_size)
+        ]:
+            response = self.check_error(
+                self.request(
+                    "GET",
+                    f"bug/comment/{comment_ids_chunk[0]}",
+                    include_fields=include_fields,
+                    exclude_fields=exclude_fields,
+                    params={
+                        "comment_ids": [str(item) for item in comment_ids_chunk[1:]]
+                    },
+                )
+            )
+            result = comments_response_model(comment_type).model_validate(response)
+            results.extend(result.comments.values())
+        return results
+
+    def comments(
+        self,
+        comment_ids: Sequence[int],
+        include_fields: Optional[list[str]] = None,
+        exclude_fields: Optional[list[str]] = None,
+        page_size: int = 100,
+    ) -> list[BugComment]:
+        """Get comments specified by their ids"""
+        return self._comments(
+            comment_ids, BugComment, include_fields, exclude_fields, page_size
+        )
+
+    def comments_as(
+        self,
+        comment_ids: Sequence[int],
+        comment_type: type[CommentType],
+        exclude_fields: Optional[list[str]] = None,
+        page_size: int = 100,
+    ) -> list[CommentType]:
+        """Get comments specified by their ids"""
+        include_fields = model_field_names(comment_type)
+        return self._comments(
+            comment_ids, comment_type, include_fields, exclude_fields, page_size
+        )
 
     def bug_history(
         self, bug_id: int, new_since: Optional[datetime] = None

@@ -124,3 +124,21 @@ def test_bug_as_exclude(bugzilla):
     assert result.id == 975444
     assert result.attachments
     assert all("data" not in item for item in result.attachments)
+
+
+def test_comment(bugzilla):
+    result = bugzilla.comments([18109498, 18109500])
+    assert all(isinstance(item, BugComment) for item in result)
+    assert len(result) == 2
+    assert {item.id for item in result} == {18109498, 18109500}
+
+
+def test_comment_as(bugzilla):
+    class CommentReactions(BaseModel):
+        id: int
+        reactions: dict[str, int]
+
+    result = bugzilla.comments_as([18109498, 18109500], CommentReactions)
+    assert all(isinstance(item, CommentReactions) for item in result)
+    assert {item.id for item in result} == {18109498, 18109500}
+    assert all(isinstance(item.reactions, dict) for item in result)
