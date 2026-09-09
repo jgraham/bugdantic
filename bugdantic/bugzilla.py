@@ -434,10 +434,6 @@ class CommentCreateResponse(BaseModel):
     id: int
 
 
-class CommentsResponse(BaseModel):
-    comments: Mapping[str, BugComment]
-
-
 CommentType = TypeVar("CommentType", bound=BaseModel)
 
 
