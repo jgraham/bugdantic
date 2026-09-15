@@ -27,7 +27,9 @@ QueryParams = Mapping[str, QueryValue | Sequence[QueryValue]]
 
 
 class BugzillaError(Exception):
-    pass
+    def __init__(self, *args: object, code: Optional[int] = None):
+        super().__init__(*args)
+        self.code = code
 
 
 class UserGroup(BaseModel):
@@ -563,12 +565,14 @@ class Bugzilla:
             assert response is not None
             try:
                 response.raise_for_status()
-            except Exception:
+            except httpx.HTTPStatusError as e:
                 msg = "Request failed"
-                json_resp = response.json()
-                if json_resp:
-                    msg += f"\n{json_resp.get('message')}"
+                err = self.error_response(response)
+                if err is not None:
+                    msg += f"\n{err.message}"
                 logging.error(msg)
+                if err is not None:
+                    raise BugzillaError(err.message, code=err.code) from e
                 raise
             return response.json()
         else:
@@ -578,11 +582,19 @@ class Bugzilla:
 """)
             return {}
 
+    @staticmethod
+    def error_response(response: httpx.Response) -> Optional[ErrorResponse]:
+        try:
+            err = ErrorResponse.model_validate(response.json())
+        except (ValueError, pydantic.ValidationError):
+            return None
+        return err if err.error else None
+
     def check_error(self, data: Mapping[str, Json]) -> Mapping[str, Json]:
         try:
             err = ErrorResponse.model_validate(data)
             if err.error:
-                raise BugzillaError(err.message)
+                raise BugzillaError(err.message, code=err.code)
         except pydantic.ValidationError:
             pass
         return data
