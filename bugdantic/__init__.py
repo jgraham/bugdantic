@@ -1,1 +1,6 @@
-from .bugzilla import Bugzilla, BugzillaConfig, BugzillaError  # noqa: F401
+from .bugzilla import (  # noqa: F401
+    Bugzilla,
+    BugzillaConfig,
+    BugzillaError,
+    BugzillaResponseError,
+)

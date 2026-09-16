@@ -26,10 +26,39 @@ QueryValue = Optional[str | int | float | bool]
 QueryParams = Mapping[str, QueryValue | Sequence[QueryValue]]
 
 
-class BugzillaError(Exception):
-    def __init__(self, *args: object, code: Optional[int] = None):
-        super().__init__(*args)
-        self.code = code
+class BugzillaError(Exception): ...
+
+
+class ResponseError(BugzillaError):
+    response_data: BaseModel
+
+    def __init__(
+        self,
+        message: str,
+        response_data: BaseModel,
+        *args: Any,
+        **kwargs: Any,
+    ):
+        super().__init__(message, *args, **kwargs)
+        self.response_data = response_data
+
+
+class BugzillaResponseError(ResponseError):
+    response_data: "ErrorResponse"
+
+    def __init__(
+        self,
+        message: str,
+        response_data: "ErrorResponse",
+        *args: Any,
+        **kwargs: Any,
+    ):
+        super().__init__(message, response_data, *args, **kwargs)
+
+    @property
+    def code(self) -> int:
+        assert isinstance(self.response_data, ErrorResponse)
+        return self.response_data.code
 
 
 class UserGroup(BaseModel):
@@ -190,9 +219,17 @@ class Bug(BaseModel):
         return self.model_dump(exclude_unset=True)
 
 
-class BugSearch(BaseModel):
+class FaultsModel(BaseModel):
     faults: Optional[list[Any]] = None
-    bugs: Optional[list[Bug]] = None
+
+    def raise_for_faults(self) -> None:
+        if self.faults:
+            # In the current BMO code this should actually be impossible
+            raise ResponseError("Unexpected faults in response", response_data=self)
+
+
+class BugSearch(FaultsModel):
+    bugs: list[Bug] = []
 
 
 # Data model for bug history
@@ -207,9 +244,8 @@ class BugHistory(BaseModel):
         return self.model_dump(exclude_unset=True)
 
 
-class BugsHistory(BaseModel):
-    faults: Optional[list[Any]] = None
-    bugs: Optional[list[BugHistory]] = None
+class BugsHistory(FaultsModel):
+    bugs: list[BugHistory] = []
 
 
 # Data models for update requests
@@ -349,8 +385,7 @@ class BugUpdateResponse(BaseModel):
 
 
 class BugsUpdateResponse(BaseModel):
-    bugs: Optional[list[BugUpdateResponse]] = None
-    faults: Optional[list[Any]] = None
+    bugs: list[BugUpdateResponse] = []
 
 
 # Data models for creating attachments
@@ -458,6 +493,10 @@ class ErrorResponse(BaseModel):
     error: bool
     documentation: str
 
+    def raise_for_error(self) -> None:
+        if self.error:
+            raise BugzillaResponseError(self.message, response_data=self)
+
 
 @dataclass
 class BugzillaConfig:
@@ -473,9 +512,8 @@ class BugzillaConfig:
 BugType = TypeVar("BugType", bound=BaseModel)
 
 
-class BugSearchGeneric(BaseModel, Generic[BugType]):
-    bugs: Optional[list[BugType]] = None
-    faults: Optional[list[Any]] = None
+class BugSearchGeneric(FaultsModel, Generic[BugType]):
+    bugs: list[BugType] = []
 
 
 def bug_search_model(bug_type: type[BugType]) -> type[BugSearchGeneric[BugType]]:
@@ -566,13 +604,15 @@ class Bugzilla:
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as e:
-                msg = "Request failed"
-                err = self.error_response(response)
-                if err is not None:
-                    msg += f"\n{err.message}"
-                logging.error(msg)
-                if err is not None:
-                    raise BugzillaError(err.message, code=err.code) from e
+                try:
+                    resp_json = response.json()
+                except ValueError:
+                    resp_json = None
+                if resp_json:
+                    try:
+                        self.check_error(resp_json)
+                    except BugzillaError as bug_error:
+                        raise bug_error from e
                 raise
             return response.json()
         else:
@@ -582,19 +622,9 @@ class Bugzilla:
 """)
             return {}
 
-    @staticmethod
-    def error_response(response: httpx.Response) -> Optional[ErrorResponse]:
-        try:
-            err = ErrorResponse.model_validate(response.json())
-        except (ValueError, pydantic.ValidationError):
-            return None
-        return err if err.error else None
-
     def check_error(self, data: Mapping[str, Json]) -> Mapping[str, Json]:
         try:
-            err = ErrorResponse.model_validate(data)
-            if err.error:
-                raise BugzillaError(err.message, code=err.code)
+            ErrorResponse.model_validate(data).raise_for_error()
         except pydantic.ValidationError:
             pass
         return data
@@ -617,8 +647,7 @@ class Bugzilla:
             )
         )
         search_result = bug_search_model(bug_type).model_validate(data)
-        if search_result.faults:
-            raise BugzillaError(search_result.faults)
+        search_result.raise_for_faults()
         bugs = search_result.bugs
         if not bugs:
             return None
@@ -752,11 +781,12 @@ class Bugzilla:
             self.request("GET", f"bug/{bug_id}/history", params=params)
         )
         query_result = BugsHistory.model_validate(data)
-        if query_result.faults:
-            raise BugzillaError(query_result.faults)
+        query_result.raise_for_faults()
         bugs = query_result.bugs
-        if bugs is None:
-            raise BugzillaError("Empty bugs list but no faults")
+        if not bugs:
+            raise ResponseError(
+                "Empty bugs list but no error", response_data=query_result
+            )
         assert len(bugs) == 1
         return bugs[0]
 
@@ -790,17 +820,15 @@ class Bugzilla:
                 )
             )
             search_result = bug_search_model(bug_type).model_validate(response)
-            if search_result.faults:
-                raise BugzillaError(search_result.faults)
-            if search_result.bugs is not None:
-                results.extend(search_result.bugs)
-                if not paginate or len(search_result.bugs) < page_size:
-                    break
-            else:
-                logging.error(
-                    f"Invalid bugzilla response object: {json.dumps(response)}"
+            search_result.raise_for_faults()
+            if not search_result.bugs:
+                raise ResponseError(
+                    "Empty bugs list but no error", response_data=search_result
                 )
-                raise BugzillaError("Response contained neither bugs nor faults fields")
+
+            results.extend(search_result.bugs)
+            if not paginate or len(search_result.bugs) < page_size:
+                break
 
             offset += page_size
             query["offset"] = str(offset)
@@ -849,13 +877,6 @@ class Bugzilla:
 
         if self.config.allow_writes:
             update_result = BugsUpdateResponse.model_validate(response)
-            if update_result.faults:
-                raise BugzillaError(update_result.faults)
-            if update_result.bugs is None:
-                logging.error(
-                    f"Invalid bugzilla response object: {json.dumps(response)}"
-                )
-                raise BugzillaError("Response contained neither bugs nor faults fields")
             return update_result.bugs
 
         return []

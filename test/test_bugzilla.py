@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, Field
 
-from bugdantic import Bugzilla, BugzillaConfig, BugzillaError
+from bugdantic import Bugzilla, BugzillaConfig, BugzillaResponseError
 from bugdantic.bugzilla import BugComment
 
 
@@ -145,14 +145,14 @@ def test_comment_as(bugzilla):
 
 
 def test_error_code(bugzilla):
-    with pytest.raises(BugzillaError) as exc_info:
+    with pytest.raises(BugzillaResponseError) as exc_info:
         bugzilla.comments([0])
-    assert exc_info.value.code == 111
+    assert exc_info.value.response_data.code == 111
     assert str(exc_info.value) == "0 is not a valid comment id."
 
 
 def test_error_fails_whole_request(bugzilla):
     """One bad comment id loses the readable comments in the same request"""
-    with pytest.raises(BugzillaError) as exc_info:
+    with pytest.raises(BugzillaResponseError) as exc_info:
         bugzilla.comments([18109498, 0, 18109500])
-    assert exc_info.value.code == 111
+    assert exc_info.value.response_data.code == 111
