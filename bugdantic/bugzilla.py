@@ -821,10 +821,6 @@ class Bugzilla:
             )
             search_result = bug_search_model(bug_type).model_validate(response)
             search_result.raise_for_faults()
-            if not search_result.bugs:
-                raise ResponseError(
-                    "Empty bugs list but no error", response_data=search_result
-                )
 
             results.extend(search_result.bugs)
             if not paginate or len(search_result.bugs) < page_size:
