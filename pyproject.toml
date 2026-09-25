@@ -24,7 +24,7 @@ test = [
   "ruff==0.16.8",
   "pytest==9.1.1",
   "pytest-ruff==0.5",
-  "ty==0.0.82",
+  "ty==0.0.83",
 ]
 
 [tool.mypy]
