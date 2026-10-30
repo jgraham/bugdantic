@@ -22,7 +22,7 @@ dependencies = [
 test = [
   "mypy==2.3.1",
   "ruff==0.16.10",
-  "pytest==9.1.1",
+  "pytest==9.2.0",
   "pytest-ruff==0.5",
   "ty==0.0.84",
 ]
